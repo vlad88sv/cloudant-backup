@@ -63,14 +63,15 @@ for file in files:
     # From line 1 (starting at 0), are all documents.
     for line in lines[1:]:
         document_json = json.loads(line.strip())
-
         attachments = document_json.get('_attachments', None)
         document_json.pop('_attachments', None)
         try:
-            document = database.create_document(document_json)
+            document = database.create_document(document_json)            
         except OSError as err:
             print ("Bad document or view found. {}/{} - {}".format(database_name, document_json['_id'], err))
         
+        del document_json
+
         if attachments:
             print ("  ...Importing attachments for document " + document['_id'])
             for attachment in attachments:
@@ -80,7 +81,9 @@ for file in files:
                 document.put_attachment(attachment, attachments[attachment]['content_type'], file_attachment.read())
                 file_attachment.close()
         ### if attachments
+        document.clear()
     ### for line
-    
+    del lines
+    database.clear()
     filehandle.close()
-    gc.collect()
+### for file    
