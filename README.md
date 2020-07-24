@@ -14,6 +14,9 @@ Cloudant library: `sudo pip3 install cloudant`
 # Examples:
 
 ## Export
+
+> couchdb-dump.py is to be used when you need to extract/export/dump all the databases to a dump.zip file, for backup
+
 ### Example 1
 > DB localhost:5984, no credentials, output in dump.zip
 
@@ -28,6 +31,9 @@ Cloudant library: `sudo pip3 install cloudant`
 `./couchdb-dump.py --user='admin' --password='admin'`
  
 ## Import
+
+> couchdb-import.py is to be used when you need to import/recover all the databases from the dump.zip file and write them to a DB server
+
 
 > DB localhost:5984, no credentials, input from dump.zip
 
