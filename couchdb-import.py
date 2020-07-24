@@ -25,10 +25,11 @@ path_attachments = path + "/unpacked/attachments/"
 print ("DB dump to be unpacked at %s" % path_unpacked)
 
 from cloudant.client import Cloudant
-client = Cloudant(args.user, args.password, url=args.host, connect=True)
+client = Cloudant(args.user, args.password, url=args.host, admin_party=True, connect=True)
 
 session = client.session()
-print('Username: {0}'.format(session['userCtx']['name']))
+if session:
+    print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
 
 if os.path.isdir(path_unpacked):
     shutil.rmtree(path_unpacked)
