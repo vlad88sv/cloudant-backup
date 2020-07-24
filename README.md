@@ -2,6 +2,14 @@
 
 The scripts in this repo can export (dump) and import all DBs from a Cloudant-based database: CouchDB, PouchDB, BigCouch.
 
+# Requirements
+This script requires `Python` >= 3.5, `pip3`, `cloudant` python lib.
+
+Pip3: `python3 -m ensurepip`
+
+Cloudant library: `sudo pip3 install cloudant`
+
+
 
 # Examples:
 
