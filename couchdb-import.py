@@ -8,6 +8,7 @@ import hashlib
 import shutil
 import glob
 import time
+import gc
 
 parser = argparse.ArgumentParser(description='Dumps CouchDB / Bigcouch databases')
 parser.add_argument('--host', help='FQDN or IP, including port. Default: http://localhost:5984', default='http://localhost:5984')
@@ -25,7 +26,7 @@ path_attachments = path + "/unpacked/attachments/"
 print ("DB dump to be unpacked at %s" % path_unpacked)
 
 from cloudant.client import Cloudant
-client = Cloudant(args.user, args.password, url=args.host, admin_party=True, connect=True)
+client = Cloudant(args.user, args.password, url=args.host, admin_party= not (args.user and args.password), connect=True)
 
 session = client.session()
 if session:
@@ -65,9 +66,11 @@ for file in files:
 
         attachments = document_json.get('_attachments', None)
         document_json.pop('_attachments', None)
-        document = database.create_document(document_json)
+        try:
+            document = database.create_document(document_json)
+        except OSError as err:
+            print ("Bad document or view found. {}/{} - {}".format(database_name, document_json['_id'], err))
         
-        ## Add attachments as pre-condition to create the document
         if attachments:
             print ("  ...Importing attachments for document " + document['_id'])
             for attachment in attachments:
@@ -76,5 +79,8 @@ for file in files:
                 file_attachment = open(path_attachments + attachment_hashed, "rb")
                 document.put_attachment(attachment, attachments[attachment]['content_type'], file_attachment.read())
                 file_attachment.close()
-        ####
-
+        ### if attachments
+    ### for line
+    
+    filehandle.close()
+    gc.collect()
