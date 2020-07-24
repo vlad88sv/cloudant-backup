@@ -33,7 +33,7 @@ if not os.path.isdir(path_attachments):
         print ("Successfully created the directory %s " % path_attachments)
 
 from cloudant.client import Cloudant
-client = Cloudant(args.user, args.password, url=args.host, admin_party=True, connect=True)
+client = Cloudant(args.user, args.password, url=args.host, admin_party= not (args.user and args.password), connect=True)
 
 session = client.session()
 if session:
