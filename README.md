@@ -45,20 +45,15 @@ Your new URL to reach the DB will be: **http://localhost:1337**
 
 > couchdb-backup.py is to be used when you need to extract/export/dump all the databases to a dump.zip file
 
-### a.1
-> DB localhost:5984, no credentials, output in dump.zip
+### a.1 DB localhost:5984, no credentials, output in dump.zip
 
 `./couchdb-backup.py`
 
-### a.2
-
-> DB with custom port, no credentials, output in dump.zip
+### a.2 DB with custom port, no credentials, output in dump.zip
 
 `./couchdb-backup.py --host='http://localhost:1337'`
 
-### a.3
-
-> DB localhost:5984, with credentials, output in dump.zip
+### a.3 DB localhost:5984, with credentials, output in dump.zip
 
 `./couchdb-backup.py --user='admin' --password='admin'`
  
