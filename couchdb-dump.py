@@ -43,7 +43,7 @@ print ("===")
 
 for database in client.all_dbs():
     database_hashed = hashlib.sha1(database.encode('utf-8')).hexdigest()
-    print('Dumping: {} - {}'.format(database, database_hashed))
+    print('Dumping: {} - {}'.format(database_hashed, database))
     filehandle = open(path_dump + "/{}.json".format(database_hashed), "a")
     filehandle.truncate(0)
     filehandle.write(database + "\n")
