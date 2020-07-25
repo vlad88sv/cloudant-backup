@@ -1,8 +1,16 @@
 # cloudant-backup
 
-The scripts in this repo can export (dump) and import all DBs from a Cloudant-based database: CouchDB, PouchDB, BigCouch.
+The Python scripts in this repo can export and import all DBs from a Cloudant-based database: CouchDB, PouchDB, BigCouch.
 
-# Requirements
+## Features
+- Based on the official [Cloudant Python lib](https://github.com/cloudant/python-cloudant)
+- Exports ALL databases
+- Exports everythin into a single compressed ZIP file
+- Supports any attachments (export/import) without issues
+- Fast import: multithreaded bulk_docs processs
+- Convenient: few dependencies, singles files
+
+## Requirements
 This script requires `Python` >= 3.5, `pip3`, `cloudant` python lib.
 
 Pip3: `python3 -m ensurepip`
@@ -10,6 +18,28 @@ Pip3: `python3 -m ensurepip`
 Cloudant library: `sudo pip3 install cloudant`
 
 # Examples:
+
+## Remote backup
+If:
+- your remote server doesn't meet the requirements for the script to be run
+- or you plan on doing external backup (example: pulling DBs daily from another server)
+- or want a local DB dump for development purposes
+
+You can do that via [SSH remote forwarding](https://www.ssh.com/ssh/tunneling/example#remote-forwarding)
+
+Example: DB server is **couchdb.myserver.com** - couch runs in port 5984 with firewall rules that avoid you to reach the DB directly at **http://couchdb.myserver.com:5984**
+
+You can access it locally via:
+
+`ssh -R 5984:localhost:1337 root@couchdb.myserver.com -p22`
+
+Where:
+
+- **5984** is the remote DB port
+- **1337** is the port in your localhost that will tunnel the traffic to the DB
+- **22** is the SSH port of your server
+
+Your new URL to reach the DB will be: **http://localhost:1337**
 
 ## Backup
 
