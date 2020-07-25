@@ -9,8 +9,6 @@ Pip3: `python3 -m ensurepip`
 
 Cloudant library: `sudo pip3 install cloudant`
 
-
-
 # Examples:
 
 ## Export
@@ -38,21 +36,21 @@ Cloudant library: `sudo pip3 install cloudant`
 
 > couchdb-import.py is to be used when you need to import/recover all the databases from the dump.zip file and write them to a DB server
 
-
 ### Example b.1
 > DB localhost:5984, no credentials, input from dump.zip
 
 `./couchdb-import.py`
 
 ### Example b.2
+
 > DB localhost:5984, with credentials, input from dump.zip
 
 `./couchdb-import.py --user='admin' --password='admin'`
 
-### Example b.3
+## Clean DBs
+
 > DB localhost:5984, with credentials, input from dump.zip
 
-> --delete matching DBs in target before recreating
+`./couchdb-import.py --user='admin' --password='admin' --clean`
 
-`./couchdb-import.py --user='admin' --password='admin' --delete`
-
+This flag will **delete** all DBs listed in the backup, without further action.
