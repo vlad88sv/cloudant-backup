@@ -1,6 +1,6 @@
 # cloudant-backup
 
-The Python scripts in this repo can export and import all DBs from a Cloudant-based database: CouchDB, PouchDB, BigCouch.
+The Python scripts in this repo can backup (*export*) and restore (*import*) all DBs from a Cloudant-based database: CouchDB, PouchDB, BigCouch.
 
 ## Features
 - Based on the official [Cloudant Python lib](https://github.com/cloudant/python-cloudant)
@@ -41,45 +41,40 @@ Where:
 
 Your new URL to reach the DB will be: **http://localhost:1337**
 
-## Backup
+## Backup examples
 
 > couchdb-backup.py is to be used when you need to extract/export/dump all the databases to a dump.zip file
 
-### Example a.1
+### a.1
 > DB localhost:5984, no credentials, output in dump.zip
 
 `./couchdb-backup.py`
 
-### Example a.2
+### a.2
 
 > DB with custom port, no credentials, output in dump.zip
 
 `./couchdb-backup.py --host='http://localhost:1337'`
 
-### Example a.3
+### a.3
 
 > DB localhost:5984, with credentials, output in dump.zip
 
 `./couchdb-backup.py --user='admin' --password='admin'`
  
-## Restore
+## Restore examples
 
 > couchdb-restore.py is to be used when you need to import/recover all the databases from the dump.zip file and write them to a DB server
 
-### Example b.1
-> DB localhost:5984, no credentials, input from dump.zip
+### b.1 DB localhost:5984, with credentials, input from dump.zip
 
 `./couchdb-restore.py`
 
-### Example b.2
-
-> DB localhost:5984, with credentials, input from dump.zip
+### b.2 DB localhost:5984, with credentials, input from dump.zip
 
 `./couchdb-restore.py --user='admin' --password='admin'`
 
-## Clean DBs
-
-> DB localhost:5984, with credentials, input from dump.zip
+### b.3 Clean DBs, DB localhost:5984, with credentials, input from dump.zip
 
 `./couchdb-restore.py --user='admin' --password='admin' --clean`
 
