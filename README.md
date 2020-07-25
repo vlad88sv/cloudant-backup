@@ -5,7 +5,7 @@ The Python scripts in this repo can backup (*export*) and restore (*import*) all
 ## Features
 - Based on the official [Cloudant Python lib](https://github.com/cloudant/python-cloudant)
 - Exports ALL databases
-- Exports everythin into a single compressed ZIP file
+- Exports everything into a single compressed ZIP file
 - Supports any attachments (export/import) without issues
 - Fast import: multithreaded bulk_docs processs
 - Convenient: few dependencies, singles files
