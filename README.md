@@ -13,7 +13,7 @@ The Python scripts in this repo can backup (*export*) and restore (*import*) all
 ## Why yet another backup tool?
 | Tool                                                                                       | Limitation                                        |
 |--------------------------------------------------------------------------------------------|---------------------------------------------------|
-| [cloudant/couchbackup](https://github.com/cloudant/couchbackup)                            | No attachments                                    |
+| [cloudant/couchbackup](https://github.com/cloudant/couchbackup)                            | Single DB, no attachments                         |
 | [docs@maintenance/backups](https://docs.couchdb.org/en/latest/maintenance/backups.html)    | Manual process, requires root acces to filesystem |
 | [danielebailo/couchdb-dump](https://github.com/danielebailo/couchdb-dump)                  | Single DB, no attachments                         |
 | [pouchdb-community/pouchdb-dump-cli](https://github.com/pouchdb-community/pouchdb-dump-cli)| Single DB, no attachments                         |
