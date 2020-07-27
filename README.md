@@ -7,7 +7,7 @@ The Python scripts in this repo can backup (*export*) and restore (*import*) all
 - Exports ALL databases
 - Exports everything into a single compressed ZIP file
 - Supports any attachments (export/import) without issues
-- Fast import: multithreaded bulk_docs processs
+- Fast import: multithreaded bulk_docs process
 - Convenient: few dependencies, singles files
 
 ## Why yet another backup tool?
@@ -27,8 +27,8 @@ Pip3: `python3 -m ensurepip`
 
 Cloudant library: `sudo pip3 install cloudant`
 
-## Important notes
-This toold does a shallow backup, meanting that it is only backing up the latest revision of the docss in the databases. This is a faster, but less complete backup.
+## Important note
+This tool does a shallow backup, meaning that it is only backing up the latest revision of the docss in the databases. This is a faster, but a less complete backup.
 
 # Examples:
 
