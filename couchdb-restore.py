@@ -9,9 +9,7 @@ import shutil
 import glob
 import time
 import gc
-import cloudant
 import concurrent.futures
-import threading
 
 ### Functions
 def get_json_documents(lines):
@@ -37,15 +35,14 @@ def bulk_import(database, documents):
 
     for check in checks:
         if 'error' in check:
-            buffer.append("[ERR] {} in doc '{}'. {}".format(check['error'], check['id'], check['reason']))
+            buffer.append("└ [ERR] {} in doc '{}'. {}".format(check['error'], check['id'], check['reason']))
     ### for check
 
     if attachments:
-        print ("  Storing attachments...")
         for document in attachments:
             for attachment in attachments[document]:
                 attachment_hashed = hashlib.sha1(attachments[document][attachment]['digest'].encode('utf-8')).hexdigest()
-                buffer.append('    -> {} - {}'.format(attachment, attachment_hashed))
+                buffer.append('└ {} - {}'.format(attachment, attachment_hashed))
                 file_attachment = open(path_attachments + attachment_hashed, "rb")
                 database[document].put_attachment(attachment, attachments[document][attachment]['content_type'], file_attachment.read())
                 file_attachment.close()
