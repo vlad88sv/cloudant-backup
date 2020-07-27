@@ -17,6 +17,9 @@ Pip3: `python3 -m ensurepip`
 
 Cloudant library: `sudo pip3 install cloudant`
 
+## Important notes
+This toold does a shallow backup, meanting that it is only backing up the latest revision of the docss in the databases. This is a faster, but less complete backup.
+
 # Examples:
 
 ## Remote backup
