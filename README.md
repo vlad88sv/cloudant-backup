@@ -10,6 +10,16 @@ The Python scripts in this repo can backup (*export*) and restore (*import*) all
 - Fast import: multithreaded bulk_docs processs
 - Convenient: few dependencies, singles files
 
+## Why yet another backup tool?
+| Tool                                                                                       | Limitation                                        |
+|--------------------------------------------------------------------------------------------|---------------------------------------------------|
+| [cloudant/couchbackup](https://github.com/cloudant/couchbackup)                            | No attachments                                    |
+| [docs@maintenance/backups](https://docs.couchdb.org/en/latest/maintenance/backups.html)    | Manual process, requires root acces to filesystem |
+| [danielebailo/couchdb-dump](https://github.com/danielebailo/couchdb-dump)                  | Single DB, no attachments                         |
+| [pouchdb-community/pouchdb-dump-cli](https://github.com/pouchdb-community/pouchdb-dump-cli)| Single DB, no attachments                         |
+| [raffi-minassian/couchdb-dump](https://github.com/raffi-minassian/couchdb-dump)            | Deprecated, Single DB, no attachments             |
+
+
 ## Requirements
 This script requires `Python` >= 3.5, `pip3`, `cloudant` python lib.
 
