@@ -1,0 +1,4 @@
+humanize
+furl
+couchdb
+cloudant
