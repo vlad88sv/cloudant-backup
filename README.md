@@ -21,11 +21,11 @@ The Python scripts in this repo can backup (*export*) and restore (*import*) all
 
 
 ## Requirements
-This script requires `Python` >= 3.5, `pip3`, `cloudant` python lib.
+This script requires `Python` >= 3.5, `pip3`, and the `cloudant` python lib.
 
-Pip3: `python3 -m ensurepip`
+Install pip3: `sudo python3 -m ensurepip` or check your distro packages.
 
-Cloudant library: `sudo pip3 install cloudant`
+Install all requirements: `sudo pip3 install -r requirements.txt`
 
 ## Important note
 This tool does a shallow backup, meaning that it is only backing up the latest revision of the docss in the databases. This is a faster, but a less complete backup.
