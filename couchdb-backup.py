@@ -15,6 +15,9 @@ def process_database(database):
     if args.match and not re_match.match(database):
         return "No match for DB " + database + ""
 
+    if args.exclude and re_exclude.match(database):
+        return "Excluding match for DB " + database + ""
+
     log_buffer = []
     database_hashed = hashlib.sha1(database.encode('utf-8')).hexdigest()
     log_buffer.append('Dumping: {} - {}'.format(database_hashed, database))
@@ -45,7 +48,8 @@ if __name__ == "__main__":
     parser.add_argument('--host', help='FQDN or IP, including port. Default: http://localhost:5984', default='http://localhost:5984')
     parser.add_argument('--user', help='DB username. Default: none')
     parser.add_argument('--password', help='DB password. Default: none')
-    parser.add_argument('--match', help='Regular expression to match the DB names. Example. Default: None.')
+    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
 
     args = parser.parse_args()
     print(args)
@@ -83,6 +87,10 @@ if __name__ == "__main__":
     if args.match:
         re_match = re.compile(args.match)
         print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = re.compile(args.match)
+        print ('Regular expresion will be used to filter databases for exclusion')
 
     print ("===")
 

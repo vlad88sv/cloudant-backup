@@ -60,6 +60,12 @@ def process_database(file):
     lines = filehandle.readlines() 
     database_name = lines[0].strip()
 
+    if args.match and not re_match.match(database_name):
+        return "No match for DB " + database_name + ""
+
+    if args.exclude and re_exclude.match(database_name):
+        return "Excluding match for DB " + database_name + ""
+
     # From line 1 (starting at 0), are all documents.
     documents = get_json_documents(lines[1:])
 
@@ -76,6 +82,9 @@ def process_database(file):
     
     buffer += bulk_import (database, documents)
 
+    del database
+    del client[database_name]
+
     filehandle.close()
     return "\n".join(buffer)
 ### process_database
@@ -90,6 +99,8 @@ if __name__ == "__main__":
     parser.add_argument('--password', help='DB password. Default: none')
     parser.add_argument('--dumpfile', help='Regular expression to match the DB names. Default: dump.zip', default='dump.zip')
     parser.add_argument('--clean', help='Delete matching DBs, and not recreate them. Default: false', action="store_true")
+    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
 
     args = parser.parse_args()
     print(args)
@@ -110,6 +121,14 @@ if __name__ == "__main__":
     session = client.session()
     if session:
         print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
+
+    if args.match:
+        re_match = re.compile(args.match)
+        print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = re.compile(args.match)
+        print ('Regular expresion will be used to filter databases for exclusion')
 
     if os.path.isdir(path_unpacked):
         shutil.rmtree(path_unpacked)
