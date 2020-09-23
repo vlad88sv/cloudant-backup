@@ -13,7 +13,7 @@ import re
 def process_database(database):
 
     if args.match and not re_match.match(database):
-        return "\nDB <" + database + "> failed to match regular expresion"
+        return "No match for DB " + database + ""
 
     log_buffer = []
     database_hashed = hashlib.sha1(database.encode('utf-8')).hexdigest()
@@ -67,7 +67,14 @@ if __name__ == "__main__":
             print ("Successfully created the directory %s " % path_attachments)
 
     from cloudant.client import Cloudant
-    client = Cloudant(args.user, args.password, url=args.host, admin_party= not (args.user and args.password), use_basic_auth=(args.user and args.password), connect=True)
+    client = Cloudant(args.user,
+                      args.password,
+                      url=args.host,
+                      admin_party=not (args.user and args.password),
+                      use_basic_auth=(args.user and args.password),
+                      connect=True,
+                      auto_renew=True
+                    )
 
     session = client.session()
     if session:

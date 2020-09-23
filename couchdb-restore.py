@@ -10,6 +10,7 @@ import glob
 import time
 import gc
 import concurrent.futures
+from cloudant.client import Cloudant
 
 ### Functions
 def get_json_documents(lines):
@@ -53,7 +54,7 @@ def bulk_import(database, documents):
     return buffer
 ### bulk_import
 
-def process_database(file, clean):
+def process_database(file):
     buffer = []
     filehandle = open(file, 'r') 
     lines = filehandle.readlines() 
@@ -68,13 +69,14 @@ def process_database(file, clean):
     except:
         pass
     
-    if clean:
+    if args.clean:
         return "Cleaned: " + database_name
 
     database = client.create_database(database_name)
     
     buffer += bulk_import (database, documents)
 
+    filehandle.close()
     return "\n".join(buffer)
 ### process_database
 
@@ -97,9 +99,14 @@ if __name__ == "__main__":
     path_attachments = path + "/unpacked/attachments/"
     print ("DB dump to be unpacked at %s" % path_unpacked)
 
-    from cloudant.client import Cloudant
-    client = Cloudant(args.user, args.password, url=args.host, admin_party= not (args.user and args.password), use_basic_auth=(args.user and args.password), connect=True)
-
+    client = Cloudant(args.user,
+                      args.password,
+                      url=args.host,
+                      admin_party=not (args.user and args.password),
+                      use_basic_auth=(args.user and args.password),
+                      connect=True,
+                      auto_renew=True
+                    )
     session = client.session()
     if session:
         print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
@@ -121,8 +128,8 @@ if __name__ == "__main__":
 
     files = glob.glob(path_unpacked + "*.json")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_import = {executor.submit(process_database, file, args.clean): file for file in files}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_import = {executor.submit(process_database, file): file for file in files}
         for future in concurrent.futures.as_completed(future_import):
             file = future_import[future]
             try:
