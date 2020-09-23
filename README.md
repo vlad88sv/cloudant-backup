@@ -30,6 +30,8 @@ Install all requirements: `sudo pip3 install -r requirements.txt`
 ## Important note
 This tool does a shallow backup, meaning that it is only backing up the latest revision of the docss in the databases. This is a faster, but a less complete backup.
 
+If you run into issues (error 500) please see the [troubleshooting](#troubleshooting) section
+
 # Examples:
 
 ## Remote backup
@@ -91,3 +93,19 @@ Your new URL to reach the DB will be: **http://localhost:1337**
 `./couchdb-restore.py --user='admin' --password='admin' --clean`
 
 This flag will **delete** all DBs listed in the backup, without further action.
+
+## Troubleshooting
+
+### Linux
+
+### Ubuntu 20.04 + CouchDB installed from Snap
+
+1. Edit `/etc/systemd/system/snap.couchdb.server.service` and add `LimitNOFILE=64000` under section `[Service]`
+2. Edit `/var/snap/couchdb/5/etc/local.ini` and add `max_dbs_open = 2500` under section `[couchdb]`
+3. Reload systemctl and restart couchdb: `sudo systemctl daemon-reload && sudo service snap.couchdb.server restart`
+
+### Windows
+
+2. Edit CouchDB's `local.ini` and add `max_dbs_open = 2500` under section `[couchdb]`
+3. Disable Antivirus (even Windows Defender) or exclude CouchDB, temporally during the import operation
+4. Restart the CouchDB service
