@@ -7,9 +7,14 @@ import os
 import hashlib
 import shutil
 import concurrent.futures
+import re
 
 ### Functions
 def process_database(database):
+
+    if args.match and not re_match.match(database):
+        return "\nDB <" + database + "> failed to match regular expresion"
+
     log_buffer = []
     database_hashed = hashlib.sha1(database.encode('utf-8')).hexdigest()
     log_buffer.append('Dumping: {} - {}'.format(database_hashed, database))
@@ -30,6 +35,7 @@ def process_database(database):
     
     filehandle.write(buffer)
     filehandle.close()
+    client[database].clear()
     return "\n".join(log_buffer)
 
 ### Functions
@@ -39,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('--host', help='FQDN or IP, including port. Default: http://localhost:5984', default='http://localhost:5984')
     parser.add_argument('--user', help='DB username. Default: none')
     parser.add_argument('--password', help='DB password. Default: none')
-    parser.add_argument('--match', help='Regular expression to match the DB names. Default: None.')
+    parser.add_argument('--match', help='Regular expression to match the DB names. Example. Default: None.')
 
     args = parser.parse_args()
     print(args)
@@ -66,6 +72,10 @@ if __name__ == "__main__":
     session = client.session()
     if session:
         print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
+
+    if args.match:
+        re_match = re.compile(args.match)
+        print ('Regular expresion will be used to filter databases')
 
     print ("===")
 

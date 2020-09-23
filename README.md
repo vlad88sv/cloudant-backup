@@ -70,6 +70,10 @@ Your new URL to reach the DB will be: **http://localhost:1337**
 
 `./couchdb-backup.py --user='admin' --password='admin'`
  
+### a.4 DB localhost:5984, with credentials, output in dump.zip, filter by database name using RegEx
+
+`./couchdb-backup.py --user='admin' --password='admin' --match='.*-myprogram|users|.*bkp.*'`
+
 ## Restore examples
 
 > couchdb-restore.py is to be used when you need to import/recover all the databases from the dump.zip file and write them to a DB server
