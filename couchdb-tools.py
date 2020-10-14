@@ -14,6 +14,7 @@ import concurrent.futures
 import couchdb
 from furl import furl
 import humanize
+import re
 
 ### Functions
 def get_json_documents(lines):
@@ -24,11 +25,18 @@ def get_json_documents(lines):
 ### get_json_documents
 
 def process_database(database):
+    if args.match and not re_match.match(database):
+        return "No match for DB " + database + ""
+
+    if args.exclude and re_exclude.match(database):
+        return "Excluding match for DB " + database + ""
+
     buffer = []
     initial_size = humanize.naturalsize(client[database].info()['data_size'])
     if args.delete:
         try:
             del client[database]
+            buffer.append("Deleted: " + database)
         except:
             buffer.append("Failed to delete: " + database)
     
@@ -46,7 +54,11 @@ def process_database(database):
         except:
             buffer.append("Failed to compact: " + database)
     
-    buffer.append (database + ' ::: ' + initial_size + ' -> ' + humanize.naturalsize(client[database].info()['data_size']))
+    try:
+        buffer.append (database + ' ::: ' + initial_size + ' -> ' + humanize.naturalsize(client[database].info()['data_size']) + ' ::: ' +  client[database].resource.url)
+    except Exception:
+        pass
+
     print ("\n".join(buffer))
 ### process_database
 
@@ -58,12 +70,13 @@ if __name__ == "__main__":
     parser.add_argument('--host', help='FQDN or IP, including port. Default: http://localhost:5984', default='http://localhost:5984')
     parser.add_argument('--user', help='DB username. Default: none')
     parser.add_argument('--password', help='DB password. Default: none')
-    parser.add_argument('--match', help='RegEx match. Default: .*')
     parser.add_argument('--delete', help='Delete matching DBs, and not recreate them.', action="store_true")
     parser.add_argument('--rebuild', help='Delete DB and recreate it again', action="store_true")
     parser.add_argument('--clean', help='Delete all docs in matching DBs, preserves views', action="store_true")
     parser.add_argument('--purge', help='Purge all docs in matching DBs', action="store_true")
     parser.add_argument('--compact', help='Cleanup and Compact all docs in matching DBs', action="store_true")
+    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
 
     args = parser.parse_args()
     print(args)
@@ -75,6 +88,14 @@ if __name__ == "__main__":
     client = couchdb.Server(str(url))
 
     # Filter databases
+    if args.match:
+        re_match = re.compile(args.match)
+        print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = re.compile(args.exclude)
+        print ('Regular expresion will be used to filter databases for exclusion')
+
     databases = list(client)
     for database in databases:
         try:

@@ -89,7 +89,7 @@ if __name__ == "__main__":
         print ('Regular expresion will be used to filter databases')
 
     if args.exclude:
-        re_exclude = re.compile(args.match)
+        re_exclude = re.compile(args.exclude)
         print ('Regular expresion will be used to filter databases for exclusion')
 
     print ("===")

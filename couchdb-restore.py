@@ -10,6 +10,7 @@ import glob
 import time
 import gc
 import concurrent.futures
+import re
 from cloudant.client import Cloudant
 
 ### Functions
@@ -127,7 +128,7 @@ if __name__ == "__main__":
         print ('Regular expresion will be used to filter databases')
 
     if args.exclude:
-        re_exclude = re.compile(args.match)
+        re_exclude = re.compile(args.exclude)
         print ('Regular expresion will be used to filter databases for exclusion')
 
     if os.path.isdir(path_unpacked):
