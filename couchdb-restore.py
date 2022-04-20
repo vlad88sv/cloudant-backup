@@ -11,6 +11,7 @@ import time
 import gc
 import concurrent.futures
 import re
+import logging
 from cloudant.client import Cloudant
 
 ### Functions
@@ -59,6 +60,10 @@ def process_database(file):
     buffer = []
     filehandle = open(file, 'r') 
     lines = filehandle.readlines() 
+
+    if not lines:
+        return "Skipping empty DB from file " + file
+
     database_name = lines[0].strip()
 
     if args.match and not re_match.match(database_name):
@@ -155,6 +160,6 @@ if __name__ == "__main__":
             try:
                 data = future.result()
             except Exception as exc:
-                print('%r generated an exception: %s' % (file, exc))
+                logging.exception('%r generated an exception: %s' % (file, exc))
             else:
                 print(data)
