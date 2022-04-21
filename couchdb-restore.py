@@ -60,6 +60,7 @@ def process_database(file):
     buffer = []
     filehandle = open(file, 'r') 
     lines = filehandle.readlines() 
+    filehandle.close()
 
     if not lines:
         return "Skipping empty DB from file " + file
@@ -91,7 +92,6 @@ def process_database(file):
     del database
     del client[database_name]
 
-    filehandle.close()
     return "\n".join(buffer)
 ### process_database
 
