@@ -12,6 +12,7 @@ import gc
 import concurrent.futures
 import re
 import logging
+import time
 from cloudant.client import Cloudant
 
 ### Functions
@@ -89,8 +90,12 @@ def process_database(file):
     
     buffer += bulk_import (database, documents)
 
+    database.clear()
+    client[database_name].clear()
     del database
     del client[database_name]
+
+    time.sleep(0.01);
 
     return "\n".join(buffer)
 ### process_database
