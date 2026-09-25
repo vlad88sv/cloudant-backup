@@ -27,6 +27,8 @@ Install pip3: `sudo python3 -m ensurepip` or check your distro packages.
 
 Install all requirements: `sudo pip3 install -r requirements.txt`
 
+`couchdb-backup.py` also needs the `zip` command to create `dump.zip` (`sudo apt install zip` on Debian/Ubuntu; on Windows, put Info-ZIP's `zip.exe` on the `PATH`). It checks for it at startup. The new `dump.zip` is built next to the previous one, which is only replaced once zip succeeds, so leave free disk space for both.
+
 ## Important note
 This tool does a shallow backup, meaning that it is only backing up the latest revision of the docss in the databases. This is a faster, but a less complete backup.
 
@@ -75,6 +77,14 @@ Your new URL to reach the DB will be: **http://localhost:1337**
 ### a.4 DB localhost:5984, with credentials, output in dump.zip, filter by database name using RegEx
 
 `./couchdb-backup.py --user='admin' --password='admin' --match='.*-myprogram|users|.*bkp.*'`
+
+### a.5 Resume an interrupted backup
+
+`./couchdb-backup.py --user='admin' --password='admin' --resume`
+
+Run it from the same directory, with the same `--match`/`--exclude` as the interrupted run. DBs already in `./dumps/` are skipped, only the missing or unfinished ones are dumped, and `dump.zip` is created again at the end. Don't resume a `./dumps/` left by a version of the script without `--resume`: it can't always tell which of those DBs were left unfinished, so run a full backup once after upgrading.
+
+If some DBs fail with an error, the backup still creates `dump.zip` without them, lists them, and exits with code 1; `--resume` retries only those.
 
 ## Restore examples
 
