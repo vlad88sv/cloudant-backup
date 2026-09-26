@@ -24,6 +24,15 @@ def get_json_documents(lines):
     return documents
 ### get_json_documents
 
+def get_size(database):
+    info = client[database].info()
+    # sizes.active on CouchDB >= 2 (the only one on 3.x), data_size on 1.x, only disk_size on BigCouch
+    for size in ((info.get('sizes') or {}).get('active'), info.get('data_size'), info.get('disk_size')):
+        if size is not None:
+            return humanize.naturalsize(size)
+    return humanize.naturalsize(0)
+### get_size
+
 def process_database(database):
     if args.match and not re_match.match(database):
         return "No match for DB " + database + ""
@@ -31,21 +40,28 @@ def process_database(database):
     if args.exclude and re_exclude.match(database):
         return "Excluding match for DB " + database + ""
 
+    # --delete or --rebuild on these would wipe the server's users and replication jobs
+    if database.startswith('_') and not args.include_system_dbs:
+        print ("Skipping system DB " + database + ", use --include-system-dbs to include it")
+        return
+
     buffer = []
-    initial_size = humanize.naturalsize(client[database].info()['data_size'])
+    initial_size = get_size(database)
     if args.delete:
         try:
-            del client[database]
+            client.delete(database)
             buffer.append("Deleted: " + database)
         except:
             buffer.append("Failed to delete: " + database)
-    
+
     if args.rebuild:
         try:
-            del client[database]
+            # Already gone if --delete was given too
+            if database in client:
+                client.delete(database)
             client.create(database)
         except:
-            buffer.append("Failed to delete: " + database)
+            buffer.append("Failed to rebuild: " + database)
 
     if args.compact:
         try:
@@ -55,7 +71,7 @@ def process_database(database):
             buffer.append("Failed to compact: " + database)
     
     try:
-        buffer.append (database + ' ::: ' + initial_size + ' -> ' + humanize.naturalsize(client[database].info()['data_size']) + ' ::: ' +  client[database].resource.url)
+        buffer.append (database + ' ::: ' + initial_size + ' -> ' + get_size(database) + ' ::: ' +  client[database].resource.url)
     except Exception:
         pass
 
@@ -77,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument('--compact', help='Cleanup and Compact all docs in matching DBs', action="store_true")
     parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--include-system-dbs', help='Also act on system DBs such as _users and _replicator. Default: false', action="store_true")
 
     args = parser.parse_args()
     print(args)

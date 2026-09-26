@@ -86,11 +86,17 @@ Run it from the same directory, with the same `--match`/`--exclude` as the inter
 
 If some DBs fail with an error, the backup still creates `dump.zip` without them, lists them, and exits with code 1; `--resume` retries only those.
 
+Ctrl-C stops a backup within seconds with exit code 130: the DBs in progress are discarded and `dump.zip` is left as it was. Continue it later with `--resume`. If the server stopped answering, press Ctrl-C again to quit at once.
+
 ## Restore examples
 
 > couchdb-restore.py is to be used when you need to import/recover all the databases from the dump.zip file and write them to a DB server
 
-### b.1 DB localhost:5984, with credentials, input from dump.zip
+Each DB in the dump is **deleted** on the server and then imported again. System DBs such as `_users` and `_replicator` are skipped unless you add `--include-system-dbs`, since restoring them replaces the server's users and replication jobs.
+
+Ctrl-C stops a restore, with exit code 130, after the DBs being imported at that moment are finished, so none is left half imported. It names those DBs, and every DB it didn't touch gets a `Not restored because of Ctrl-C: <db>` line. From the Ctrl-C on, all output goes to stderr, which still reaches the terminal when stdout is piped to `tee`. Press Ctrl-C again to quit at once; it names the DBs that may be left incomplete. The restore exits with code 1 if any DB failed or had docs or attachments rejected (`[ERR]` lines).
+
+### b.1 DB localhost:5984, no credentials, input from dump.zip
 
 `./couchdb-restore.py`
 
@@ -102,7 +108,7 @@ If some DBs fail with an error, the backup still creates `dump.zip` without them
 
 `./couchdb-restore.py --user='admin' --password='admin' --clean`
 
-This flag will **delete** all DBs listed in the backup, without further action.
+This flag will **delete** all DBs listed in the backup (except system DBs, unless `--include-system-dbs` is given), without further action.
 
 ## Troubleshooting
 

@@ -8,12 +8,47 @@ import sys
 import glob
 import hashlib
 import shutil
+import signal
 import subprocess
 import threading
 import concurrent.futures
 import re
+from urllib.parse import quote
 
 ### Functions
+def on_ctrl_c(signum, frame):
+    # Counts presses in a plain global that workers check per doc and attachment chunk. It
+    # raises nothing (a KeyboardInterrupt can land inside the executor's locking and break it)
+    # and takes no lock: a second Ctrl-C can run this handler nested inside the first one.
+    # A second Ctrl-C quits at once, for when a request to a server that stopped answering
+    # never returns.
+    global interrupted
+    interrupted += 1
+    if interrupted > 1:
+        os._exit(130)
+    write_stderr("\nInterrupted, stopping the DBs in progress (Ctrl-C again to quit now). Run again with --resume to continue\n")
+### on_ctrl_c
+
+def write_stderr(text):
+    # stderr, since with `| tee` the same Ctrl-C kills tee and closes stdout. Raw os.write, as
+    # the handler can run while the main thread is inside print(). Skipped when stderr was
+    # closed at startup (2>&-): fd 2 may then belong to a CouchDB connection.
+    if sys.stderr is not None:
+        try:
+            os.write(2, text.encode('utf-8'))
+        except OSError:
+            pass
+### write_stderr
+
+def output(text):
+    # When stdout breaks (`| tee` killed by Ctrl-C), the rest goes to /dev/null instead of
+    # raising out of the main loop, which would skip cancelling the queue and fail at exit
+    try:
+        print(text, flush=True)
+    except BrokenPipeError:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+### output
+
 def is_dumped(file_dump):
     # A finished dump has at least one doc after the DB name line and ends with a newline.
     # Versions without --resume left empty, name-only or cut-off files for DBs that were
@@ -38,16 +73,31 @@ def dump_attachment(document, attachment, attachment_hashed):
     # Several threads can fetch the same attachment at once, so each one writes its own
     # .partial file and renames it into place when complete.
     file_partial = "{}.{}.partial".format(file_attachment, threading.get_ident())
+    # Streamed in 1MB chunks: document.get_attachment() would hold the whole attachment in
+    # memory, and fetch the document again first. The rev makes the content match the stub
+    # just dumped even if the doc changed since.
+    response = document.r_session.get(document.document_url + "/" + quote(attachment, safe=''), params={'rev': document['_rev']}, stream=True)
     try:
+        response.raise_for_status()
+        # urllib3 1.x, what Python 3.5 gets, would otherwise save a body cut short without error
+        response.raw.enforce_content_length = True
         with open(file_partial, "wb") as filehandle:
-            document.get_attachment(attachment, write_to=filehandle, attachment_type='binary')
+            for chunk in response.iter_content(1024 * 1024):
+                if interrupted:
+                    raise RuntimeError("Interrupted")
+                filehandle.write(chunk)
         os.replace(file_partial, file_attachment)
     finally:
+        response.close()
         if os.path.isfile(file_partial):
             os.remove(file_partial)
 ### dump_attachment
 
 def process_database(database):
+
+    # A queued DB picked up between the Ctrl-C and the main loop cancelling the queue
+    if interrupted:
+        raise RuntimeError("Interrupted")
 
     if args.match and not re_match.match(database):
         return "No match for DB " + database + ""
@@ -77,6 +127,9 @@ def process_database(database):
         with open(file_partial, "w") as filehandle:
             filehandle.write(database + "\n")
             for document in db:
+                # Set on Ctrl-C; the .partial file is removed below and --resume redoes the DB
+                if interrupted:
+                    raise RuntimeError("Interrupted")
                 filehandle.write(json.dumps(document) + "\n")
                 if "_attachments" in document:
                     for attachment in document["_attachments"]:
@@ -163,18 +216,36 @@ if __name__ == "__main__":
 
     print ("===")
 
+    interrupted = 0
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    # A background job started with SIGINT ignored keeps ignoring it
+    if previous_sigint is not signal.SIG_IGN:
+        signal.signal(signal.SIGINT, on_ctrl_c)
+    # Output is flushed as it goes: a second Ctrl-C quits with os._exit, which drops the buffer
+    sys.stdout.flush()
     failed = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         future_import = {executor.submit(process_database, database): database for database in client.all_dbs()}
         for future in concurrent.futures.as_completed(future_import):
+            if interrupted:
+                # Otherwise the executor would still start every queued DB before exiting
+                for queued in future_import:
+                    queued.cancel()
+                break
             file = future_import[future]
             try:
                 data = future.result()
             except Exception as exc:
                 failed += 1
-                print('%r generated an exception: %s' % (file, exc))
+                output('%r generated an exception: %s' % (file, exc))
             else:
-                print(data)
+                output(data)
+
+    if interrupted:
+        sys.exit(130)
+
+    # Ctrl-C now stops zip and the script right away, as before
+    signal.signal(signal.SIGINT, previous_sigint)
 
     # Flush so zip's output doesn't land before ours when stdout goes to a file
     print ("Compressing DUMP folder", flush=True)
