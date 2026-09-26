@@ -86,7 +86,7 @@ Run it from the same directory, with the same `--match`/`--exclude` as the inter
 
 If some DBs fail with an error, the backup still creates `dump.zip` without them, lists them, and exits with code 1; `--resume` retries only those.
 
-Ctrl-C stops a backup within seconds with exit code 130: the DBs in progress are discarded and `dump.zip` is left as it was. Continue it later with `--resume`. If the server stopped answering, press Ctrl-C again to quit at once.
+Ctrl-C stops a backup within seconds with exit code 130: the DBs in progress are discarded and `dump.zip` is left as it was. Continue it later with `--resume`. If the server stopped answering, press Ctrl-C again to quit at once; otherwise the stuck requests give up after `--timeout` seconds.
 
 ## Restore examples
 
@@ -94,7 +94,7 @@ Ctrl-C stops a backup within seconds with exit code 130: the DBs in progress are
 
 Each DB in the dump is **deleted** on the server and then imported again. System DBs such as `_users` and `_replicator` are skipped unless you add `--include-system-dbs`, since restoring them replaces the server's users and replication jobs.
 
-Ctrl-C stops a restore, with exit code 130, after the DBs being imported at that moment are finished, so none is left half imported. It names those DBs, and every DB it didn't touch gets a `Not restored because of Ctrl-C: <db>` line. From the Ctrl-C on, all output goes to stderr, which still reaches the terminal when stdout is piped to `tee`. Press Ctrl-C again to quit at once; it names the DBs that may be left incomplete. The restore exits with code 1 if any DB failed or had docs or attachments rejected (`[ERR]` lines).
+Ctrl-C stops a restore, with exit code 130, after the DBs being imported at that moment are finished, so none is left half imported. It names those DBs, and every DB it didn't touch gets a `Not restored: <db>` line (if the server stopped answering, the DBs being imported fail after `--timeout` instead and may be left incomplete). From the Ctrl-C on, all output goes to stderr, which still reaches the terminal when stdout is piped to `tee`. Press Ctrl-C again to quit at once; it names the DBs that may be left incomplete. The restore exits with code 1 if any DB failed or had docs or attachments rejected (`[ERR]` lines).
 
 ### b.1 DB localhost:5984, no credentials, input from dump.zip
 
@@ -109,6 +109,30 @@ Ctrl-C stops a restore, with exit code 130, after the DBs being imported at that
 `./couchdb-restore.py --user='admin' --password='admin' --clean`
 
 This flag will **delete** all DBs listed in the backup (except system DBs, unless `--include-system-dbs` is given), without further action.
+
+## Tools examples
+
+> couchdb-tools.py reports the size of each DB and can delete, rebuild, clean, purge or compact the matching ones. System DBs such as `_users` and `_replicator` are skipped unless you add `--include-system-dbs`. Without `--match`, every DB on the server is affected.
+
+### c.1 Size of every DB
+
+`./couchdb-tools.py --user='admin' --password='admin'`
+
+### c.2 Delete every doc but keep the views (design docs), then compact
+
+`./couchdb-tools.py --user='admin' --password='admin' --match='.*-2019..' --clean --compact`
+
+Deleted docs leave tombstones, which replicate to other servers.
+
+### c.3 Purge every doc but keep the views, then compact
+
+`./couchdb-tools.py --user='admin' --password='admin' --match='.*-2019..' --purge --compact`
+
+Purged docs are removed completely, deleted ones included, and nothing is replicated. `--compact` doesn't work on BigCouch's clustered port 5984. Needs CouchDB 1.x or 2.3+; BigCouch and CouchDB 2.0–2.2 refuse it (reported as "Failed to purge"). On CouchDB 3.x, views may keep rows for purged docs, a server-side issue with automatic compaction, so prefer `--clean` where views matter or rebuild them afterwards.
+
+### Timeout
+
+All three scripts take `--timeout` (seconds, default 300, 0 waits forever). A request the server doesn't answer in time fails the DB it belongs to instead of blocking forever; one while connecting or listing the DBs ends the run. If 3 DBs in a row fail because the server can't be reached, the script stops with exit code 1 instead of spending a timeout on every remaining DB (for a backup, continue later with `--resume`; a restore lists the DBs it didn't touch). DBs skipped by `--match`/`--exclude` don't count.
 
 ## Troubleshooting
 

@@ -13,7 +13,11 @@ import subprocess
 import threading
 import concurrent.futures
 import re
+import requests.exceptions
 from urllib.parse import quote
+
+# Errors that mean the server didn't answer (timeouts included) rather than refused something
+NETWORK_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ChunkedEncodingError)
 
 ### Functions
 def on_ctrl_c(signum, frame):
@@ -83,7 +87,7 @@ def dump_attachment(document, attachment, attachment_hashed):
         response.raw.enforce_content_length = True
         with open(file_partial, "wb") as filehandle:
             for chunk in response.iter_content(1024 * 1024):
-                if interrupted:
+                if interrupted or stopped:
                     raise RuntimeError("Interrupted")
                 filehandle.write(chunk)
         os.replace(file_partial, file_attachment)
@@ -94,22 +98,23 @@ def dump_attachment(document, attachment, attachment_hashed):
 ### dump_attachment
 
 def process_database(database):
+    # Returns the log of the DB and whether it contacted the server (skipped DBs don't)
 
-    # A queued DB picked up between the Ctrl-C and the main loop cancelling the queue
-    if interrupted:
+    # A queued DB picked up between the Ctrl-C (or a stop) and the main loop cancelling the queue
+    if interrupted or stopped:
         raise RuntimeError("Interrupted")
 
     if args.match and not re_match.match(database):
-        return "No match for DB " + database + ""
+        return "No match for DB " + database + "", False
 
     if args.exclude and re_exclude.match(database):
-        return "Excluding match for DB " + database + ""
+        return "Excluding match for DB " + database + "", False
 
     database_hashed = hashlib.sha1(database.encode('utf-8')).hexdigest()
     file_dump = path_dump + "{}.json".format(database_hashed)
 
     if args.resume and is_dumped(file_dump):
-        return "Already dumped DB " + database + ", skipping"
+        return "Already dumped DB " + database + ", skipping", False
 
     # An unfinished file from an interrupted run; without it, a failure below leaves the DB
     # out of dump.zip instead of zipping it half done
@@ -127,8 +132,8 @@ def process_database(database):
         with open(file_partial, "w") as filehandle:
             filehandle.write(database + "\n")
             for document in db:
-                # Set on Ctrl-C; the .partial file is removed below and --resume redoes the DB
-                if interrupted:
+                # Set on Ctrl-C (or a stop); the .partial file is removed below and --resume redoes the DB
+                if interrupted or stopped:
                     raise RuntimeError("Interrupted")
                 filehandle.write(json.dumps(document) + "\n")
                 if "_attachments" in document:
@@ -144,7 +149,7 @@ def process_database(database):
         db.clear()
         if os.path.isfile(file_partial):
             os.remove(file_partial)
-    return "\n".join(log_buffer)
+    return "\n".join(log_buffer), True
 
 ### Functions
 
@@ -156,8 +161,11 @@ if __name__ == "__main__":
     parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--resume', help='Keep the DBs already dumped in ./dumps/ by an interrupted run and dump only the missing ones. Use the same --match/--exclude as that run. Default: false', action="store_true")
+    parser.add_argument('--timeout', help='Seconds to wait for the server on each request before failing that DB. 0 waits forever. Default: 300', type=float, default=300)
 
     args = parser.parse_args()
+    if not 0 <= args.timeout <= 1000000:
+        parser.error("--timeout must be between 0 and 1000000 seconds")
     print(args)
 
     # dump.zip is built with the system zip; check for it now rather than after the whole dump
@@ -199,7 +207,9 @@ if __name__ == "__main__":
                       admin_party=not (args.user and args.password),
                       use_basic_auth=(args.user and args.password),
                       connect=True,
-                      auto_renew=True
+                      auto_renew=True,
+                      # Without it a server that stops answering blocks a worker for good
+                      timeout=args.timeout or None
                     )
 
     session = client.session()
@@ -217,6 +227,8 @@ if __name__ == "__main__":
     print ("===")
 
     interrupted = 0
+    # Set when the server stops answering; workers stop on it like on a Ctrl-C
+    stopped = False
     previous_sigint = signal.getsignal(signal.SIGINT)
     # A background job started with SIGINT ignored keeps ignoring it
     if previous_sigint is not signal.SIG_IGN:
@@ -224,22 +236,37 @@ if __name__ == "__main__":
     # Output is flushed as it goes: a second Ctrl-C quits with os._exit, which drops the buffer
     sys.stdout.flush()
     failed = 0
+    # DBs in a row that failed to reach the server; skipped DBs leave it as it is
+    unreachable = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         future_import = {executor.submit(process_database, database): database for database in client.all_dbs()}
         for future in concurrent.futures.as_completed(future_import):
-            if interrupted:
+            if not interrupted and not stopped:
+                file = future_import[future]
+                try:
+                    data, contacted = future.result()
+                except Exception as exc:
+                    failed += 1
+                    output('%r generated an exception: %s' % (file, exc))
+                    unreachable = unreachable + 1 if isinstance(exc, NETWORK_ERRORS) else 0
+                else:
+                    output(data)
+                    if contacted:
+                        unreachable = 0
+                # A server that stopped answering would cost a --timeout per remaining DB. With
+                # nothing left in the queue there's nothing to save, and dump.zip is still built.
+                # Kept apart from the Ctrl-C count, so a Ctrl-C after it is still a first one.
+                if unreachable == 3 and any(not queued.done() and not queued.running() for queued in future_import):
+                    output("Stopping: 3 DBs in a row couldn't reach the server. Waiting for the DBs in progress to finish or time out; run again with --resume once it answers")
+                    stopped = True
+            if interrupted or stopped:
                 # Otherwise the executor would still start every queued DB before exiting
                 for queued in future_import:
                     queued.cancel()
                 break
-            file = future_import[future]
-            try:
-                data = future.result()
-            except Exception as exc:
-                failed += 1
-                output('%r generated an exception: %s' % (file, exc))
-            else:
-                output(data)
+
+    if stopped:
+        sys.exit(1)
 
     if interrupted:
         sys.exit(130)

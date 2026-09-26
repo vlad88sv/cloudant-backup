@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -14,10 +15,14 @@ import re
 import logging
 import signal
 from urllib.parse import quote
+import requests.exceptions
 from requests.exceptions import HTTPError
 from cloudant.client import Cloudant
 from cloudant.document import Document
 from cloudant.error import CloudantClientException
+
+# Errors that mean the server didn't answer (timeouts included) rather than refused something
+NETWORK_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ChunkedEncodingError)
 
 # Docs are sent to _bulk_docs in requests of about this size, so memory doesn't depend on
 # the size of the DB and requests stay far below the server's request size limit
@@ -104,7 +109,11 @@ def bulk_docs(database, documents):
     # max_document_size), the docs are sent one at a time so only the bad ones fail. Other errors
     # (401, 404, 429...) have nothing to do with the docs and fail the DB.
     try:
-        return database.bulk_docs(documents)
+        # Sent from a stream instead of database.bulk_docs(): a single send of the ~8MB batch
+        # would have to finish within --timeout, while blocks each get their own
+        response = database.r_session.post(database.database_url + "/_bulk_docs", data=io.BytesIO(json.dumps({'docs': documents}).encode('utf-8')), headers={'Content-Type': 'application/json'})
+        response.raise_for_status()
+        return response.json()
     except HTTPError as exc:
         if exc.response is None or exc.response.status_code not in (400, 413):
             raise
@@ -197,20 +206,21 @@ def skip_reason(file, database_name):
 ### skip_reason
 
 def process_database(file):
-    # Returns the log of the DB and how many docs and attachments were rejected
+    # Returns the log of the DB and how many docs and attachments were rejected, or None when
+    # the DB was skipped without contacting the server
     database_name = read_name(file)
     reason = skip_reason(file, database_name)
     if reason:
-        return reason, 0
+        return reason, None
 
     # Parse the whole file and check its attachments before touching the server, so a broken
     # dump fails before its DB is dropped
     count = 0
     if not args.clean:
         for batch in read_batches(file):
-            # The DB hasn't been dropped yet, so on Ctrl-C it's left as it is
-            if interrupted:
-                return "Not restored because of Ctrl-C: " + database_name, 0
+            # The DB hasn't been dropped yet, so on Ctrl-C (or a stop) it's left as it is
+            if interrupted or stopped:
+                return "Not restored: " + database_name, None
             count += len(batch)
             check_attachments(batch)
 
@@ -218,8 +228,8 @@ def process_database(file):
     # the two still names this DB if it goes on to be dropped.
     importing.add(database_name)
     try:
-        if interrupted:
-            return "Not restored because of Ctrl-C: " + database_name, 0
+        if interrupted or stopped:
+            return "Not restored: " + database_name, None
 
         try:
             client.delete_database(database_name)
@@ -267,8 +277,11 @@ if __name__ == "__main__":
     parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--include-system-dbs', help='Also restore (or with --clean, delete) system DBs such as _users and _replicator, replacing the ones on the server. Default: false', action="store_true")
+    parser.add_argument('--timeout', help='Seconds to wait for the server on each request before failing that DB. 0 waits forever. Default: 300', type=float, default=300)
 
     args = parser.parse_args()
+    if not 0 <= args.timeout <= 1000000:
+        parser.error("--timeout must be between 0 and 1000000 seconds")
     print(args)
 
     path = os.getcwd()
@@ -282,7 +295,9 @@ if __name__ == "__main__":
                       admin_party=not (args.user and args.password),
                       use_basic_auth=(args.user and args.password),
                       connect=True,
-                      auto_renew=True
+                      auto_renew=True,
+                      # Without it a server that stops answering blocks a worker for good
+                      timeout=args.timeout or None
                     )
     session = client.session()
     if session:
@@ -314,6 +329,9 @@ if __name__ == "__main__":
     files = glob.glob(path_unpacked + "*.json")
 
     failed = 0
+    # DBs in a row that failed to reach the server; skipped DBs leave it as it is
+    unreachable = 0
+    stopped = False
     interrupted = 0
     importing = set()
     # A background job started with SIGINT ignored keeps ignoring it
@@ -325,7 +343,7 @@ if __name__ == "__main__":
         future_import = {executor.submit(process_database, file): file for file in files}
         queued_cancelled = False
         for future in concurrent.futures.as_completed(future_import):
-            if interrupted and not queued_cancelled:
+            if (interrupted or stopped) and not queued_cancelled:
                 # Queued DBs would return right away anyway; this saves starting each of them
                 for queued in future_import:
                     queued.cancel()
@@ -338,20 +356,29 @@ if __name__ == "__main__":
             except Exception as exc:
                 failed += 1
                 logging.exception('%s (%r) generated an exception: %s' % (read_name(file), file, exc))
+                unreachable = unreachable + 1 if isinstance(exc, NETWORK_ERRORS) else 0
             else:
                 output(data)
                 if errors:
                     failed += 1
+                if errors is not None:
+                    unreachable = 0
+            # A server that stopped answering would cost a --timeout per remaining DB. Stops like
+            # a Ctrl-C: the DBs not dropped yet are left alone. Pointless with nothing queued. Kept
+            # apart from the Ctrl-C count, so a Ctrl-C after it is still a first one.
+            if unreachable == 3 and not interrupted and not stopped and any(not queued.done() and not queued.running() for queued in future_import):
+                output("Stopping: 3 DBs in a row couldn't reach the server. Waiting for the DBs in progress to finish or time out")
+                stopped = True
 
     if failed:
         output("%d DBs failed or had docs or attachments rejected, see the errors above" % failed)
 
-    if interrupted:
+    if interrupted or stopped:
         # Restore has no --resume, so list what still needs restoring
         for future in future_import:
             if future.cancelled() and not skip_reason(future_import[future], read_name(future_import[future])):
-                output("Not restored because of Ctrl-C: " + read_name(future_import[future]))
-        sys.exit(130)
+                output("Not restored: " + read_name(future_import[future]))
+        sys.exit(1 if stopped else 130)
 
     if failed:
         sys.exit(1)
