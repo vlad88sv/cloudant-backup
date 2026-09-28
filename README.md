@@ -78,6 +78,8 @@ Your new URL to reach the DB will be: **http://localhost:1337**
 
 `./couchdb-backup.py --user='admin' --password='admin' --match='.*-myprogram|users|.*bkp.*'`
 
+`--match` and `--exclude` (in all three scripts) are regular expressions matched from the start of the DB name, not shell wildcards: for the DBs whose name contains `provisioner` use `--match='.*provisioner'`, not `'*provisioner*'`.
+
 ### a.5 Resume an interrupted backup
 
 `./couchdb-backup.py --user='admin' --password='admin' --resume`

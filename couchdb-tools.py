@@ -17,6 +17,22 @@ import humanize
 import re
 
 ### Functions
+def compile_pattern(parser, flag, pattern):
+    # --match/--exclude take a regular expression, not a shell wildcard. '*name*' is the usual
+    # mistake and isn't valid, so the error suggests the regex the wildcard stands for.
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        message = "{} {!r} is not a valid regular expression ({})".format(flag, pattern, exc)
+        if '*' in pattern:
+            try:
+                re.compile(pattern.replace('*', '.*'))
+                message += "; for a wildcard, use {}='{}'".format(flag, pattern.replace('*', '.*'))
+            except re.error:
+                pass
+        parser.error(message)
+### compile_pattern
+
 def get_json_documents(lines):
     documents = []
     for line in lines:
@@ -256,8 +272,8 @@ if __name__ == "__main__":
     parser.add_argument('--clean', help='Delete all docs in matching DBs, preserves views (design docs). Deleted docs leave tombstones, which replicate', action="store_true")
     parser.add_argument('--purge', help='Purge all docs in matching DBs, deleted ones included, preserves views (design docs). Nothing is left to replicate; add --compact to free the disk space. Needs CouchDB 2.3+ or 1.x (not BigCouch)', action="store_true")
     parser.add_argument('--compact', help='Cleanup and Compact all docs in matching DBs', action="store_true")
-    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
-    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--match', help='Regular expression (not a wildcard) matched from the start of each DB name. Example ".*provisioner" or ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression (not a wildcard) matched from the start of each DB name, for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--include-system-dbs', help='Also act on system DBs such as _users and _replicator. Default: false', action="store_true")
     parser.add_argument('--timeout', help='Seconds to wait for the server on each request before giving up on it. 0 waits forever. Default: 300', type=float, default=300)
 
@@ -266,20 +282,21 @@ if __name__ == "__main__":
         parser.error("--timeout must be between 0 and 1000000 seconds")
     print(args)
 
+    # Checked before connecting, so a bad pattern gets a usage error instead of a traceback
+    if args.match:
+        re_match = compile_pattern(parser, '--match', args.match)
+        print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = compile_pattern(parser, '--exclude', args.exclude)
+        print ('Regular expresion will be used to filter databases for exclusion')
+
 
     url = furl(args.host)
     url.username = args.user
     url.password = args.password
     client = couchdb.Server(str(url), session=couchdb.Session(timeout=args.timeout or None))
 
-    # Filter databases
-    if args.match:
-        re_match = re.compile(args.match)
-        print ('Regular expresion will be used to filter databases')
-
-    if args.exclude:
-        re_exclude = re.compile(args.exclude)
-        print ('Regular expresion will be used to filter databases for exclusion')
 
     databases = list(client)
     unreachable = 0

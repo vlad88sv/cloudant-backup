@@ -20,6 +20,22 @@ from urllib.parse import quote
 NETWORK_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ChunkedEncodingError)
 
 ### Functions
+def compile_pattern(parser, flag, pattern):
+    # --match/--exclude take a regular expression, not a shell wildcard. '*name*' is the usual
+    # mistake and isn't valid, so the error suggests the regex the wildcard stands for.
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        message = "{} {!r} is not a valid regular expression ({})".format(flag, pattern, exc)
+        if '*' in pattern:
+            try:
+                re.compile(pattern.replace('*', '.*'))
+                message += "; for a wildcard, use {}='{}'".format(flag, pattern.replace('*', '.*'))
+            except re.error:
+                pass
+        parser.error(message)
+### compile_pattern
+
 def on_ctrl_c(signum, frame):
     # Counts presses in a plain global that workers check per doc and attachment chunk. It
     # raises nothing (a KeyboardInterrupt can land inside the executor's locking and break it)
@@ -158,8 +174,8 @@ if __name__ == "__main__":
     parser.add_argument('--host', help='FQDN or IP, including port. Default: http://localhost:5984', default='http://localhost:5984')
     parser.add_argument('--user', help='DB username. Default: none')
     parser.add_argument('--password', help='DB password. Default: none')
-    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
-    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--match', help='Regular expression (not a wildcard) matched from the start of each DB name. Example ".*provisioner" or ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression (not a wildcard) matched from the start of each DB name, for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--resume', help='Keep the DBs already dumped in ./dumps/ by an interrupted run and dump only the missing ones. Use the same --match/--exclude as that run. Default: false', action="store_true")
     parser.add_argument('--timeout', help='Seconds to wait for the server on each request before failing that DB. 0 waits forever. Default: 300', type=float, default=300)
 
@@ -167,6 +183,15 @@ if __name__ == "__main__":
     if not 0 <= args.timeout <= 1000000:
         parser.error("--timeout must be between 0 and 1000000 seconds")
     print(args)
+
+    # Checked before anything else: an invalid --match used to fail only after ./dumps/ was wiped
+    if args.match:
+        re_match = compile_pattern(parser, '--match', args.match)
+        print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = compile_pattern(parser, '--exclude', args.exclude)
+        print ('Regular expresion will be used to filter databases for exclusion')
 
     # dump.zip is built with the system zip; check for it now rather than after the whole dump
     if not shutil.which("zip"):
@@ -216,13 +241,6 @@ if __name__ == "__main__":
     if session:
         print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
 
-    if args.match:
-        re_match = re.compile(args.match)
-        print ('Regular expresion will be used to filter databases')
-
-    if args.exclude:
-        re_exclude = re.compile(args.exclude)
-        print ('Regular expresion will be used to filter databases for exclusion')
 
     print ("===")
 

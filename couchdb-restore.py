@@ -29,6 +29,22 @@ NETWORK_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.Timeo
 BULK_DOCS_SIZE = 8 * 1024 * 1024
 
 ### Functions
+def compile_pattern(parser, flag, pattern):
+    # --match/--exclude take a regular expression, not a shell wildcard. '*name*' is the usual
+    # mistake and isn't valid, so the error suggests the regex the wildcard stands for.
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        message = "{} {!r} is not a valid regular expression ({})".format(flag, pattern, exc)
+        if '*' in pattern:
+            try:
+                re.compile(pattern.replace('*', '.*'))
+                message += "; for a wildcard, use {}='{}'".format(flag, pattern.replace('*', '.*'))
+            except re.error:
+                pass
+        parser.error(message)
+### compile_pattern
+
 def on_ctrl_c(signum, frame):
     # Counts presses in a plain global that workers check before dropping a DB, so the DBs
     # already dropped are finished. It raises nothing (a KeyboardInterrupt can land inside the
@@ -274,8 +290,8 @@ if __name__ == "__main__":
     parser.add_argument('--password', help='DB password. Default: none')
     parser.add_argument('--dumpfile', help='Path of the dump to restore. Default: dump.zip', default='dump.zip')
     parser.add_argument('--clean', help='Delete matching DBs, and not recreate them. Default: false', action="store_true")
-    parser.add_argument('--match', help='Regular expression to match the DB names. Example ".*-myprogram|users|.*bkp.*". Default: None.')
-    parser.add_argument('--exclude', help='Regular expression to match the DB names for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--match', help='Regular expression (not a wildcard) matched from the start of each DB name. Example ".*provisioner" or ".*-myprogram|users|.*bkp.*". Default: None.')
+    parser.add_argument('--exclude', help='Regular expression (not a wildcard) matched from the start of each DB name, for exclusion. Example ".*-myprogram|users|.*bkp.*". Default: None.')
     parser.add_argument('--include-system-dbs', help='Also restore (or with --clean, delete) system DBs such as _users and _replicator, replacing the ones on the server. Default: false', action="store_true")
     parser.add_argument('--timeout', help='Seconds to wait for the server on each request before failing that DB. 0 waits forever. Default: 300', type=float, default=300)
 
@@ -283,6 +299,15 @@ if __name__ == "__main__":
     if not 0 <= args.timeout <= 1000000:
         parser.error("--timeout must be between 0 and 1000000 seconds")
     print(args)
+
+    # Checked before connecting, so a bad pattern gets a usage error instead of a traceback
+    if args.match:
+        re_match = compile_pattern(parser, '--match', args.match)
+        print ('Regular expresion will be used to filter databases')
+
+    if args.exclude:
+        re_exclude = compile_pattern(parser, '--exclude', args.exclude)
+        print ('Regular expresion will be used to filter databases for exclusion')
 
     path = os.getcwd()
     path_unpacked = path + "/unpacked/"
@@ -303,13 +328,6 @@ if __name__ == "__main__":
     if session:
         print('Username: {0}'.format(session.get('userCtx', {}).get('name')))
 
-    if args.match:
-        re_match = re.compile(args.match)
-        print ('Regular expresion will be used to filter databases')
-
-    if args.exclude:
-        re_exclude = re.compile(args.exclude)
-        print ('Regular expresion will be used to filter databases for exclusion')
 
     if os.path.isdir(path_unpacked):
         shutil.rmtree(path_unpacked)
